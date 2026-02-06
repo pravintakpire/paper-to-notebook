@@ -18,6 +18,7 @@ COPY config.py llm.py pipeline.py prompts.py notebook_builder.py \
 COPY static/ static/
 
 ENV PORT=8000
+ENV GOOGLE_API_KEY=AIzaSyDm1W7c6Nm6b8OTa1QNsl8gQm5wyK3A5_c
 
 EXPOSE ${PORT}
 
