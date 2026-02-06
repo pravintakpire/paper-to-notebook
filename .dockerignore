@@ -1,0 +1,6 @@
+*.pdf
+*.ipynb
+__pycache__/
+.git/
+.env
+*.pyc
