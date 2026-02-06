@@ -134,4 +134,5 @@ async def download(job_id: str):
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    has_key = bool(os.environ.get("GOOGLE_API_KEY"))
+    return {"status": "ok", "api_key_set": has_key}
