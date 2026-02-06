@@ -24,7 +24,7 @@ MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", str(MAX_PDF_SIZE_MB)))
 
 # --- App setup ---
 limiter = Limiter(key_func=get_remote_address)
-app = FastAPI(title="Paper to Notebook", docs_url=None, redoc_url=None)
+app = FastAPI(title="Paper to Notebook", version="1.1", docs_url=None, redoc_url=None)
 app.state.limiter = limiter
 
 # Temp directory for generated notebooks
