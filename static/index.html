@@ -402,7 +402,8 @@ async function handleGenerate() {
   generateBtn.disabled = true;
   generateBtn.textContent = 'Generating...';
   resetSteps();
-  showSpinner('Reading your paper...');
+  updateStep(1, 'Reading PDF and extracting structure...');
+  showSpinner('Analyzing paper structure...');
 
   const formData = new FormData();
   formData.append('file', selectedFile);
