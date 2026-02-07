@@ -324,8 +324,9 @@
     <p><strong>Notebook ready!</strong><br>All cells executed successfully.</p>
   </div>
 
-  <!-- Download -->
-  <a class="btn btn-download" id="downloadBtn" href="#">Download .ipynb</a>
+  <!-- Download buttons -->
+  <a class="btn btn-download" id="draftBtn" href="#" style="background:var(--accent);">Download Draft .ipynb</a>
+  <a class="btn btn-download" id="downloadBtn" href="#">Download Validated .ipynb</a>
 
   <div class="footer">
     Powered by Gemini 2.5 Pro &middot; Real PyTorch implementations &middot; Rate limited to 10/hr
@@ -341,6 +342,7 @@ const fileName = document.getElementById('fileName');
 const fileSize = document.getElementById('fileSize');
 const removeBtn = document.getElementById('removeBtn');
 const generateBtn = document.getElementById('generateBtn');
+const draftBtn = document.getElementById('draftBtn');
 const downloadBtn = document.getElementById('downloadBtn');
 const stepsSection = document.getElementById('stepsSection');
 const errorBox = document.getElementById('errorBox');
@@ -375,6 +377,7 @@ function selectFile(file) {
   generateBtn.disabled = false;
   hideError();
   downloadBtn.classList.remove('active');
+  draftBtn.classList.remove('active');
   doneBanner.classList.remove('active');
 }
 
@@ -390,6 +393,7 @@ generateBtn.addEventListener('click', handleGenerate);
 async function handleGenerate() {
   if (!selectedFile) return;
   hideError();
+  draftBtn.classList.remove('active');
   downloadBtn.classList.remove('active');
   doneBanner.classList.remove('active');
   activityFeed.innerHTML = '';
@@ -424,6 +428,9 @@ async function handleGenerate() {
         if (part.startsWith('event: progress')) {
           const dl = part.split('\n').find(l => l.startsWith('data: '));
           if (dl) handleProgress(JSON.parse(dl.slice(6)));
+        } else if (part.startsWith('event: draft_ready')) {
+          const dl = part.split('\n').find(l => l.startsWith('data: '));
+          if (dl) handleDraftReady(JSON.parse(dl.slice(6)));
         } else if (part.startsWith('event: complete')) {
           const dl = part.split('\n').find(l => l.startsWith('data: '));
           if (dl) handleComplete(JSON.parse(dl.slice(6)));
@@ -482,9 +489,17 @@ function handleProgress(data) {
   }
 }
 
+function handleDraftReady(data) {
+  draftBtn.href = `/api/download/${data.job_id}`;
+  draftBtn.classList.add('active');
+  generateBtn.textContent = 'Validating...';
+  window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+}
+
 function handleComplete(data) {
   completeAllSteps();
   hideSpinner();
+  draftBtn.classList.remove('active');
   downloadBtn.href = `/api/download/${data.job_id}`;
   downloadBtn.classList.add('active');
   generateBtn.textContent = 'Generate Another';

@@ -24,7 +24,7 @@ MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", str(MAX_PDF_SIZE_MB)))
 
 # --- App setup ---
 limiter = Limiter(key_func=get_remote_address)
-app = FastAPI(title="Paper to Notebook", version="1.1", docs_url=None, redoc_url=None)
+app = FastAPI(title="Paper to Notebook", version="1.2", docs_url=None, redoc_url=None)
 app.state.limiter = limiter
 
 # Temp directory for generated notebooks
@@ -60,6 +60,7 @@ async def generate(request: Request, file: UploadFile = File(...)):
         raise HTTPException(413, f"PDF too large ({size_mb:.1f}MB). Max is {MAX_UPLOAD_MB}MB.")
 
     job_id = uuid.uuid4().hex[:12]
+    draft_id = job_id + "_draft"
 
     async def event_stream():
         loop = asyncio.get_event_loop()
@@ -84,10 +85,25 @@ async def generate(request: Request, file: UploadFile = File(...)):
             try:
                 event = await asyncio.wait_for(progress_queue.get(), timeout=1.0)
                 _, step, name, detail, extra = event
-                data = {"step": step, "name": name, "detail": detail}
-                if extra:
-                    data["extra"] = extra
-                yield f"event: progress\ndata: {json.dumps(data)}\n\n"
+
+                # Check if this progress event carries draft notebook bytes
+                if extra and "draft_bytes" in extra:
+                    draft_bytes = extra.pop("draft_bytes")
+                    # Save draft to disk
+                    draft_path = os.path.join(TEMP_DIR, f"{draft_id}.ipynb")
+                    with open(draft_path, "wb") as f:
+                        f.write(draft_bytes)
+                    # Send progress event (without the bytes)
+                    data = {"step": step, "name": name, "detail": detail, "extra": extra}
+                    yield f"event: progress\ndata: {json.dumps(data)}\n\n"
+                    # Send draft_ready event
+                    draft_data = json.dumps({"job_id": draft_id, "size_kb": len(draft_bytes) // 1024})
+                    yield f"event: draft_ready\ndata: {draft_data}\n\n"
+                else:
+                    data = {"step": step, "name": name, "detail": detail}
+                    if extra:
+                        data["extra"] = extra
+                    yield f"event: progress\ndata: {json.dumps(data)}\n\n"
             except asyncio.TimeoutError:
                 yield f": keepalive\n\n"
 
@@ -95,6 +111,8 @@ async def generate(request: Request, file: UploadFile = File(...)):
         while not progress_queue.empty():
             event = await progress_queue.get()
             _, step, name, detail, extra = event
+            if extra and "draft_bytes" in extra:
+                extra.pop("draft_bytes")
             data = {"step": step, "name": name, "detail": detail}
             if extra:
                 data["extra"] = extra
@@ -120,7 +138,7 @@ async def generate(request: Request, file: UploadFile = File(...)):
 
 @app.get("/api/download/{job_id}")
 async def download(job_id: str):
-    if not job_id.isalnum():
+    if not job_id.replace("_", "").isalnum():
         raise HTTPException(400, "Invalid job ID")
     path = os.path.join(TEMP_DIR, f"{job_id}.ipynb")
     if not os.path.exists(path):

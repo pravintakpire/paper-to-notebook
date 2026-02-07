@@ -35,6 +35,11 @@ def _nb_to_bytes(nb: nbformat.NotebookNode) -> bytes:
     return buffer.getvalue().encode("utf-8")
 
 
+def _cells_to_bytes(cells: list) -> bytes:
+    nb = build_notebook(cells)
+    return _nb_to_bytes(nb)
+
+
 def run_web_pipeline(
     pdf_bytes: bytes,
     model: str = DEFAULT_MODEL,
@@ -110,11 +115,15 @@ def run_web_pipeline(
             "type": c.get("cell_type", "code"),
             "preview": c.get("source", "")[:300],
         })
+
+    # Build draft notebook bytes and send as draft_ready
+    draft_bytes = _cells_to_bytes(cells)
     _notify(3, "Generating notebook", f"Generated {num_cells} cells ({code_cells} code)", {
         "type": "cells_generated",
         "num_cells": num_cells,
         "code_cells": code_cells,
         "previews": previews,
+        "draft_bytes": draft_bytes,
     })
 
     # Step 4: Validate & Repair (LLM review)
@@ -131,6 +140,6 @@ def run_web_pipeline(
     validated_cells = parse_llm_json(validated_raw, "validate", model)
     _notify(4, "Validating code", "Validation complete")
 
-    # Build and return notebook
+    # Build and return validated notebook
     nb = build_notebook(validated_cells)
     return _nb_to_bytes(nb)
