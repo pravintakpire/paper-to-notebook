@@ -304,7 +304,6 @@
     <div class="step" id="step2"><div class="step-dot">2</div><div class="step-content"><div class="step-name">Design implementation</div><div class="step-detail" id="step2Detail"></div></div></div>
     <div class="step" id="step3"><div class="step-dot">3</div><div class="step-content"><div class="step-name">Generate notebook</div><div class="step-detail" id="step3Detail"></div></div></div>
     <div class="step" id="step4"><div class="step-dot">4</div><div class="step-content"><div class="step-name">Validate code</div><div class="step-detail" id="step4Detail"></div></div></div>
-    <div class="step" id="step5"><div class="step-dot">5</div><div class="step-content"><div class="step-name">Execute &amp; verify</div><div class="step-detail" id="step5Detail"></div></div></div>
   </div>
 
   <!-- Inline spinner -->
@@ -443,7 +442,6 @@ const spinnerTexts = {
   2: 'Designing architecture...',
   3: 'Writing PyTorch code...',
   4: 'Reviewing for errors...',
-  5: 'Executing notebook...',
 };
 
 function handleProgress(data) {
@@ -482,22 +480,6 @@ function handleProgress(data) {
     }
     addCard('Notebook Generated', `${extra.num_cells} cells (${extra.code_cells} code)`, html);
   }
-  else if (extra.type === 'execution_error') {
-    addCard('Runtime Error', `Cell ${extra.cell_index} failed`,
-      `<div class="exec-error"><div class="err-label">Error</div><pre>${esc((extra.error || '').slice(0, 400))}</pre></div>
-       <p style="margin-top:8px;color:var(--orange);font-size:0.8rem;">Auto-fixing with AI...</p>`);
-    showSpinner('Fixing runtime error...');
-  }
-  else if (extra.type === 'execution_success') {
-    hideSpinner();
-    doneBanner.classList.add('active');
-  }
-  else if (extra.type === 'execution_warning') {
-    hideSpinner();
-    addCard('Execution Warning', 'Some errors remain',
-      `<div class="exec-error"><div class="err-label">Remaining error</div><pre>${esc((extra.error || '').slice(0, 400))}</pre></div>
-       <p style="margin-top:8px;color:var(--orange);font-size:0.8rem;">Notebook may need manual fixes.</p>`);
-  }
 }
 
 function handleComplete(data) {
@@ -517,7 +499,7 @@ function handleError(data) {
 
 // --- Steps ---
 function resetSteps() {
-  for (let i = 1; i <= 5; i++) {
+  for (let i = 1; i <= 4; i++) {
     document.getElementById(`step${i}`).className = 'step';
     document.getElementById(`step${i}Detail`).textContent = '';
   }
@@ -535,7 +517,7 @@ function updateStep(step, detail) {
 }
 
 function completeAllSteps() {
-  for (let i = 1; i <= 5; i++) {
+  for (let i = 1; i <= 4; i++) {
     const el = document.getElementById(`step${i}`);
     el.className = 'step completed';
     el.querySelector('.step-dot').textContent = '\u2713';
