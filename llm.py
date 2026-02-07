@@ -26,7 +26,7 @@ def call_gemini(
     model: str = "gemini-2.5-pro",
 ) -> str:
     """Make a Gemini API call and return the text response."""
-    api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+    api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY") or "AIzaSyAoT3bvLuhHqnWJ52Nftz6ABidvd1ZQ_nI"
     client = genai.Client(api_key=api_key)
     response = client.models.generate_content(
         model=model,
