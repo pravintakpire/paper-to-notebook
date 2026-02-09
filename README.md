@@ -2,7 +2,7 @@
 
 **Turn Research Papers into Runnable Code.**
 
-`paper-to-notebook` is an AI-powered tool that automatically converts academic research papers (PDFs) into high-quality, educational Jupyter Notebooks. It uses Google's Gemini Pro to read the paper, design a faithful "toy" implementation using real PyTorch components, and generate a complete, runnable notebook.
+`paper-to-notebook` is an AI-powered tool that automatically converts academic research papers (PDFs) into high-quality, educational Jupyter Notebooks. It uses OpenAI's GPT-4o to read the paper, design a faithful "toy" implementation using real PyTorch components, and generate a complete, runnable notebook.
 
 ## 🚀 Features
 
@@ -20,7 +20,7 @@ graph TD
     User[User] -->|Upload PDF| API[FastAPI Server]
     API -->|Start Job| Pipeline[Pipeline Orchestrator]
     
-    subgraph "AI Processing (Gemini Pro)"
+    subgraph "AI Processing (GPT-4o)"
         Pipeline -->|1. Analyze| Analysis[Paper Analysis]
         Analysis -->|2. Plan| Design[Toy Implementation Design]
         Design -->|3. Code| Gen[Code Generation]
@@ -49,7 +49,7 @@ graph TD
 3.  **Set up API Keys**:
     Create a `.env` file or export your key:
     ```bash
-    export GOOGLE_API_KEY="your_gemini_api_key"
+    export OPENAI_API_KEY="your_openai_api_key"
     ```
 
 ## 💻 Usage
@@ -71,7 +71,7 @@ python pipeline.py --pdf path/to/paper.pdf --output my_notebook.ipynb
 
 -   `app.py`: FastAPI backend handling uploads and streaming responses.
 -   `pipeline.py`: Core logic for the 4-stage generation process.
--   `llm.py`: Robust wrapper for Google Gemini API with retry logic and PDF support.
+-   `llm.py`: Robust wrapper for OpenAI API with retry logic and PDF support.
 -   `prompts.py`: Detailed system prompts for acting as a research engineer.
 -   `notebook_builder.py`: Utilities for constructing valid `.ipynb` JSON.
 

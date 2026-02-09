@@ -6,7 +6,7 @@ import json
 from typing import Callable, Optional
 
 import nbformat
-from google.genai import types
+
 
 from config import (
     DEFAULT_MODEL,
@@ -15,7 +15,7 @@ from config import (
     MAX_TOKENS_GENERATE,
     MAX_TOKENS_VALIDATE,
 )
-from llm import call_gemini_with_retry, parse_llm_json
+from llm import call_llm_with_retry, load_pdf_text_from_bytes, parse_llm_json
 from notebook_builder import build_notebook
 from prompts import (
     ANALYSIS_PROMPT,
@@ -54,13 +54,13 @@ def run_web_pipeline(
         if on_progress:
             on_progress(step, name, detail, extra)
 
-    pdf_part = types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf")
+    pdf_text = load_pdf_text_from_bytes(pdf_bytes)
 
     # Step 1: Paper Analysis
     _notify(1, "Analyzing paper", "Reading PDF and extracting structure...")
-    analysis_raw = call_gemini_with_retry(
+    analysis_raw = call_llm_with_retry(
         system_prompt=SYSTEM_PROMPT,
-        user_content=[pdf_part, ANALYSIS_PROMPT],
+        user_content=f"Here is the research paper content:\n\n{pdf_text}\n\nInstructions:\n{ANALYSIS_PROMPT}",
         max_tokens=MAX_TOKENS_ANALYSIS,
         model=model,
         api_key=api_key,
@@ -82,9 +82,9 @@ def run_web_pipeline(
     design_prompt = DESIGN_PROMPT_TEMPLATE.format(
         analysis_json=json.dumps(analysis, indent=2)
     )
-    design_raw = call_gemini_with_retry(
+    design_raw = call_llm_with_retry(
         system_prompt=SYSTEM_PROMPT,
-        user_content=[pdf_part, design_prompt],
+        user_content=f"Here is the research paper content:\n\n{pdf_text}\n\nInstructions:\n{design_prompt}",
         max_tokens=MAX_TOKENS_DESIGN,
         model=model,
         api_key=api_key,
@@ -107,9 +107,9 @@ def run_web_pipeline(
         analysis_json=json.dumps(analysis, indent=2),
         design_json=json.dumps(design, indent=2),
     )
-    cells_raw = call_gemini_with_retry(
+    cells_raw = call_llm_with_retry(
         system_prompt=SYSTEM_PROMPT,
-        user_content=[pdf_part, generate_prompt],
+        user_content=f"Here is the research paper content:\n\n{pdf_text}\n\nInstructions:\n{generate_prompt}",
         max_tokens=MAX_TOKENS_GENERATE,
         model=model,
         api_key=api_key,
@@ -140,9 +140,9 @@ def run_web_pipeline(
     validate_prompt = VALIDATE_PROMPT_TEMPLATE.format(
         cells_json=json.dumps(cells, indent=2)
     )
-    validated_raw = call_gemini_with_retry(
+    validated_raw = call_llm_with_retry(
         system_prompt=SYSTEM_PROMPT,
-        user_content=[validate_prompt],
+        user_content=validate_prompt,
         max_tokens=MAX_TOKENS_VALIDATE,
         model=model,
         api_key=api_key,

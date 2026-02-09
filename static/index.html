@@ -347,13 +347,13 @@
 
   <!-- API Key -->
   <div class="api-key-section">
-    <label class="api-key-label" for="apiKeyInput">Gemini API Key</label>
+    <label class="api-key-label" for="apiKeyInput">OpenAI API Key</label>
     <div class="api-key-row">
-      <input type="password" class="api-key-input" id="apiKeyInput" placeholder="AIza..." autocomplete="off">
+      <input type="password" class="api-key-input" id="apiKeyInput" placeholder="sk-..." autocomplete="off">
       <button type="button" class="toggle-key-btn" id="toggleKeyBtn" title="Show/hide key">Show</button>
     </div>
     <p class="api-key-help">
-      <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Get a free API key</a> from Google AI Studio &mdash; it takes 10 seconds.
+      <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">Get your API key</a> from OpenAI platform.
     </p>
   </div>
 
@@ -396,7 +396,7 @@
   <a class="btn btn-download" id="downloadBtn" href="#">Download Validated .ipynb</a>
 
   <div class="footer">
-    Powered by Gemini 2.5 Pro &middot; Real PyTorch implementations &middot; Bring your own API key
+    Powered by OpenAI GPT-4o &middot; Real PyTorch implementations &middot; Bring your own API key
   </div>
 </div>
 
@@ -426,7 +426,7 @@ let selectedFile = null;
 
 // --- API Key handling ---
 // Load saved key from localStorage
-const savedKey = localStorage.getItem('gemini_api_key');
+const savedKey = localStorage.getItem('openai_api_key');
 if (savedKey) { apiKeyInput.value = savedKey; }
 
 apiKeyInput.addEventListener('input', updateGenerateBtn);
@@ -484,10 +484,10 @@ generateBtn.addEventListener('click', handleGenerate);
 async function handleGenerate() {
   if (!selectedFile) return;
   const userKey = apiKeyInput.value.trim();
-  if (!userKey) { showError('Please enter your Gemini API key.'); return; }
+  if (!userKey) { showError('Please enter your OpenAI API key.'); return; }
 
   // Save key to localStorage for next time
-  localStorage.setItem('gemini_api_key', userKey);
+  localStorage.setItem('openai_api_key', userKey);
 
   hideError();
   draftBtn.classList.remove('active');

@@ -9,7 +9,7 @@ from config import (
     MAX_TOKENS_GENERATE,
     MAX_TOKENS_VALIDATE,
 )
-from llm import call_gemini_with_retry, load_pdf_as_part, parse_llm_json
+from llm import call_llm_with_retry, load_pdf_text, parse_llm_json
 from notebook_builder import build_notebook, save_notebook
 from prompts import (
     ANALYSIS_PROMPT,
@@ -37,12 +37,13 @@ def run_pipeline(
     Args:
         pdf_path: Path to the research paper PDF.
         output_path: Where to save the generated .ipynb.
-        model: Gemini model ID to use.
+        model: LLM model ID to use.
         verbose: If True, print intermediate JSON outputs.
     """
     # Load PDF once — reused across all steps
     print(f"Loading PDF: {pdf_path}")
-    pdf_part = load_pdf_as_part(pdf_path)
+    pdf_text = load_pdf_text(pdf_path)
+    print(f"  Loaded {len(pdf_text)} characters of text.")
 
     # ------------------------------------------------------------------
     # Step 1: Paper Analysis
@@ -50,9 +51,9 @@ def run_pipeline(
     _print_step(1, "Analyzing paper")
     print("  Extracting title, algorithms, baselines, metrics...")
 
-    analysis_raw = call_gemini_with_retry(
+    analysis_raw = call_llm_with_retry(
         system_prompt=SYSTEM_PROMPT,
-        user_content=[pdf_part, ANALYSIS_PROMPT],
+        user_content=f"Here is the research paper content:\n\n{pdf_text}\n\nInstructions:\n{ANALYSIS_PROMPT}",
         max_tokens=MAX_TOKENS_ANALYSIS,
         model=model,
     )
@@ -77,9 +78,9 @@ def run_pipeline(
         analysis_json=json.dumps(analysis, indent=2)
     )
 
-    design_raw = call_gemini_with_retry(
+    design_raw = call_llm_with_retry(
         system_prompt=SYSTEM_PROMPT,
-        user_content=[pdf_part, design_prompt],
+        user_content=f"Here is the research paper content:\n\n{pdf_text}\n\nInstructions:\n{design_prompt}",
         max_tokens=MAX_TOKENS_DESIGN,
         model=model,
     )
@@ -105,9 +106,9 @@ def run_pipeline(
         design_json=json.dumps(design, indent=2),
     )
 
-    cells_raw = call_gemini_with_retry(
+    cells_raw = call_llm_with_retry(
         system_prompt=SYSTEM_PROMPT,
-        user_content=[pdf_part, generate_prompt],
+        user_content=f"Here is the research paper content:\n\n{pdf_text}\n\nInstructions:\n{generate_prompt}",
         max_tokens=MAX_TOKENS_GENERATE,
         model=model,
     )
@@ -135,9 +136,9 @@ def run_pipeline(
         cells_json=json.dumps(cells, indent=2)
     )
 
-    validated_raw = call_gemini_with_retry(
+    validated_raw = call_llm_with_retry(
         system_prompt=SYSTEM_PROMPT,
-        user_content=[validate_prompt],
+        user_content=validate_prompt,
         max_tokens=MAX_TOKENS_VALIDATE,
         model=model,
     )

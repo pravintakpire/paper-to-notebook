@@ -1,14 +1,14 @@
 """Configuration constants for the paper-to-notebook tool."""
 
 # Default Gemini model
-DEFAULT_MODEL = "gemini-2.5-pro"
+DEFAULT_MODEL = "gpt-4o"
 
 # Token limits per pipeline step (larger for real PyTorch implementations)
 MAX_TOKENS_ANALYSIS = 8192
 MAX_TOKENS_DESIGN = 8192
-MAX_TOKENS_GENERATE = 65536
-MAX_TOKENS_VALIDATE = 65536
-MAX_TOKENS_FIX = 65536
+MAX_TOKENS_GENERATE = 16384
+MAX_TOKENS_VALIDATE = 16384
+MAX_TOKENS_FIX = 16384
 
 # Notebook execution
 EXECUTE_TIMEOUT = 300  # seconds per cell

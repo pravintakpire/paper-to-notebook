@@ -40,7 +40,7 @@ async def generate(request: Request, file: UploadFile = File(...), api_key: str 
 
     api_key = api_key.strip()
     if not api_key:
-        raise HTTPException(400, "Gemini API key is required")
+        raise HTTPException(400, "OpenAI API key is required")
 
     pdf_bytes = await file.read()
     size_mb = len(pdf_bytes) / (1024 * 1024)

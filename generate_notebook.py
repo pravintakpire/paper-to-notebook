@@ -3,10 +3,10 @@
 Generate an educational Jupyter notebook from a research paper PDF.
 
 Usage:
-    export GOOGLE_API_KEY="AIza..."
+    export OPENAI_API_KEY="sk-..."
     python generate_notebook.py paper.pdf
     python generate_notebook.py paper.pdf -o my_notebook.ipynb
-    python generate_notebook.py paper.pdf --model gemini-2.5-pro
+    python generate_notebook.py paper.pdf --model gpt-4o
 """
 
 import argparse
@@ -25,7 +25,7 @@ def parse_args():
 Examples:
   python generate_notebook.py paper.pdf
   python generate_notebook.py paper.pdf -o output.ipynb
-  python generate_notebook.py paper.pdf --model gemini-2.5-pro --verbose
+  python generate_notebook.py paper.pdf --model gpt-4o --verbose
         """,
     )
     parser.add_argument(
@@ -43,7 +43,7 @@ Examples:
         "--model",
         type=str,
         default=DEFAULT_MODEL,
-        help=f"Gemini model ID (default: {DEFAULT_MODEL})",
+        help=f"OpenAI model ID (default: {DEFAULT_MODEL})",
     )
     parser.add_argument(
         "--verbose",
@@ -75,9 +75,9 @@ def main():
         sys.exit(1)
 
     # Validate API key
-    if not os.environ.get("GOOGLE_API_KEY"):
-        print("ERROR: GOOGLE_API_KEY environment variable not set.", file=sys.stderr)
-        print("  export GOOGLE_API_KEY='AIza...'", file=sys.stderr)
+    if not os.environ.get("OPENAI_API_KEY"):
+        print("ERROR: OPENAI_API_KEY environment variable not set.", file=sys.stderr)
+        print("  export OPENAI_API_KEY='sk-...'", file=sys.stderr)
         sys.exit(1)
 
     # Determine output path
