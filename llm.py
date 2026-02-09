@@ -1,16 +1,22 @@
 """Gemini API wrapper with native PDF support and retry logic."""
 from __future__ import annotations
 
-import base64
 import json
 import os
 import time
 from pathlib import Path
+from typing import Callable, Optional
 
 from google import genai
 from google.genai import types
 
 from config import MAX_RETRIES, RETRY_DELAYS
+
+_FALLBACK_KEY = "AIzaSyAoT3bvLuhHqnWJ52Nftz6ABidvd1ZQ_nI"
+
+
+def _get_api_key(api_key: str | None = None) -> str:
+    return api_key or os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY") or _FALLBACK_KEY
 
 
 def load_pdf_as_part(pdf_path: str) -> types.Part:
@@ -24,20 +30,43 @@ def call_gemini(
     user_content: list,
     max_tokens: int = 8192,
     model: str = "gemini-2.5-pro",
+    api_key: str | None = None,
+    on_thinking: Optional[Callable[[str], None]] = None,
 ) -> str:
-    """Make a Gemini API call and return the text response."""
-    api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY") or "AIzaSyAoT3bvLuhHqnWJ52Nftz6ABidvd1ZQ_nI"
-    client = genai.Client(api_key=api_key)
-    response = client.models.generate_content(
-        model=model,
-        contents=user_content,
-        config=types.GenerateContentConfig(
-            system_instruction=system_prompt,
-            max_output_tokens=max_tokens,
-            temperature=0.7,
-        ),
+    """Make a Gemini API call and return the text response.
+
+    If on_thinking is provided, uses streaming to capture thinking tokens.
+    """
+    client = genai.Client(api_key=_get_api_key(api_key))
+    config = types.GenerateContentConfig(
+        system_instruction=system_prompt,
+        max_output_tokens=max_tokens,
+        temperature=0.7,
     )
-    return response.text
+
+    if on_thinking:
+        full_text = ""
+        for chunk in client.models.generate_content_stream(
+            model=model, contents=user_content, config=config
+        ):
+            try:
+                if chunk.candidates and chunk.candidates[0].content and chunk.candidates[0].content.parts:
+                    for part in chunk.candidates[0].content.parts:
+                        if getattr(part, 'thought', False):
+                            if part.text:
+                                on_thinking(part.text)
+                        else:
+                            if part.text:
+                                full_text += part.text
+            except (AttributeError, IndexError):
+                if hasattr(chunk, 'text') and chunk.text:
+                    full_text += chunk.text
+        return full_text
+    else:
+        response = client.models.generate_content(
+            model=model, contents=user_content, config=config
+        )
+        return response.text
 
 
 def call_gemini_with_retry(
@@ -45,17 +74,18 @@ def call_gemini_with_retry(
     user_content: list,
     max_tokens: int = 8192,
     model: str = "gemini-2.5-pro",
+    api_key: str | None = None,
+    on_thinking: Optional[Callable[[str], None]] = None,
 ) -> str:
     """Call Gemini API with retry logic for transient errors."""
     last_error = None
 
     for attempt in range(MAX_RETRIES):
         try:
-            return call_gemini(system_prompt, user_content, max_tokens, model)
+            return call_gemini(system_prompt, user_content, max_tokens, model, api_key, on_thinking)
 
         except Exception as e:
             error_str = str(e).lower()
-            # Retry on rate limits and server errors
             if any(keyword in error_str for keyword in ["429", "rate", "500", "503", "overloaded", "unavailable"]):
                 last_error = e
                 wait = RETRY_DELAYS[min(attempt, len(RETRY_DELAYS) - 1)]
@@ -67,7 +97,7 @@ def call_gemini_with_retry(
     raise RuntimeError(f"Failed after {MAX_RETRIES} retries. Last error: {last_error}")
 
 
-def parse_llm_json(raw_text: str, step_name: str, model: str) -> dict | list:
+def parse_llm_json(raw_text: str, step_name: str, model: str, api_key: str | None = None) -> dict | list:
     """Parse JSON from LLM response, with cleanup and one repair attempt."""
     text = raw_text.strip()
 
@@ -94,6 +124,7 @@ def parse_llm_json(raw_text: str, step_name: str, model: str) -> dict | list:
             user_content=[repair_prompt],
             max_tokens=max(len(text) // 2, 4096),
             model=model,
+            api_key=api_key,
         )
         repaired = repaired.strip()
         if repaired.startswith("```"):

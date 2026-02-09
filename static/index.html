@@ -263,6 +263,55 @@
   .done-banner p { color: var(--text-dim); font-size: 0.85rem; }
   .done-banner strong { color: var(--text); }
 
+  /* === API KEY === */
+  .api-key-section {
+    margin-top: 16px;
+    animation: fadeUp 0.5s ease 0.15s both;
+  }
+  .api-key-label {
+    font-size: 0.85rem; font-weight: 600; margin-bottom: 8px; display: block;
+  }
+  .api-key-row { display: flex; gap: 8px; }
+  .api-key-input {
+    flex: 1; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 10px 14px; color: var(--text);
+    font-size: 0.85rem; font-family: var(--mono); outline: none; transition: border-color 0.2s;
+  }
+  .api-key-input:focus { border-color: var(--accent); }
+  .api-key-input::placeholder { color: var(--text-muted); }
+  .toggle-key-btn {
+    background: var(--surface3); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    color: var(--text-dim); cursor: pointer; padding: 0 12px; font-size: 0.85rem; transition: all 0.15s;
+  }
+  .toggle-key-btn:hover { background: var(--surface2); color: var(--text); }
+  .api-key-help {
+    font-size: 0.78rem; color: var(--text-muted); margin-top: 8px;
+  }
+  .api-key-help a { color: var(--accent); text-decoration: none; }
+  .api-key-help a:hover { text-decoration: underline; }
+
+  /* === THINKING BOX === */
+  .thinking-box {
+    display: none; margin-top: 16px; background: #0d1117;
+    border: 1px solid #21262d; border-radius: var(--radius-sm); overflow: hidden;
+  }
+  .thinking-box.active { display: block; animation: fadeUp 0.3s ease; }
+  .thinking-header {
+    padding: 8px 14px; font-size: 0.72rem; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--text-muted);
+    background: rgba(255,255,255,0.03); border-bottom: 1px solid #21262d;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .thinking-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+    animation: stepPulse 1.5s ease-in-out infinite;
+  }
+  .thinking-content {
+    padding: 12px 14px; font-family: var(--mono); font-size: 0.74rem;
+    color: #8b949e; max-height: 150px; overflow-y: auto;
+    white-space: pre-wrap; word-break: break-word; line-height: 1.5;
+  }
+
   /* === FOOTER === */
   .footer {
     text-align: center; margin-top: 40px; padding-top: 20px;
@@ -296,6 +345,18 @@
     <input type="file" id="fileInput" accept=".pdf">
   </div>
 
+  <!-- API Key -->
+  <div class="api-key-section">
+    <label class="api-key-label" for="apiKeyInput">Gemini API Key</label>
+    <div class="api-key-row">
+      <input type="password" class="api-key-input" id="apiKeyInput" placeholder="AIza..." autocomplete="off">
+      <button type="button" class="toggle-key-btn" id="toggleKeyBtn" title="Show/hide key">Show</button>
+    </div>
+    <p class="api-key-help">
+      <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Get a free API key</a> from Google AI Studio &mdash; it takes 10 seconds.
+    </p>
+  </div>
+
   <button class="btn btn-primary" id="generateBtn" disabled>Generate Notebook</button>
 
   <!-- Progress steps -->
@@ -310,6 +371,12 @@
   <div class="spinner-inline" id="spinner">
     <div class="spinner-dots"><span></span><span></span><span></span></div>
     <span id="spinnerLabel">Processing...</span>
+  </div>
+
+  <!-- Thinking box -->
+  <div class="thinking-box" id="thinkingBox">
+    <div class="thinking-header"><span class="thinking-dot"></span> Model thinking</div>
+    <div class="thinking-content" id="thinkingContent"></div>
   </div>
 
   <!-- Activity cards (analysis, design, code preview, errors) -->
@@ -329,7 +396,7 @@
   <a class="btn btn-download" id="downloadBtn" href="#">Download Validated .ipynb</a>
 
   <div class="footer">
-    Powered by Gemini 2.5 Pro &middot; Real PyTorch implementations &middot; Rate limited to 10/hr
+    Powered by Gemini 2.5 Pro &middot; Real PyTorch implementations &middot; Bring your own API key
   </div>
 </div>
 
@@ -341,6 +408,8 @@ const fileInfo = document.getElementById('fileInfo');
 const fileName = document.getElementById('fileName');
 const fileSize = document.getElementById('fileSize');
 const removeBtn = document.getElementById('removeBtn');
+const apiKeyInput = document.getElementById('apiKeyInput');
+const toggleKeyBtn = document.getElementById('toggleKeyBtn');
 const generateBtn = document.getElementById('generateBtn');
 const draftBtn = document.getElementById('draftBtn');
 const downloadBtn = document.getElementById('downloadBtn');
@@ -348,10 +417,32 @@ const stepsSection = document.getElementById('stepsSection');
 const errorBox = document.getElementById('errorBox');
 const spinner = document.getElementById('spinner');
 const spinnerLabel = document.getElementById('spinnerLabel');
+const thinkingBox = document.getElementById('thinkingBox');
+const thinkingContent = document.getElementById('thinkingContent');
 const activityFeed = document.getElementById('activityFeed');
 const doneBanner = document.getElementById('doneBanner');
 
 let selectedFile = null;
+
+// --- API Key handling ---
+// Load saved key from localStorage
+const savedKey = localStorage.getItem('gemini_api_key');
+if (savedKey) { apiKeyInput.value = savedKey; }
+
+apiKeyInput.addEventListener('input', updateGenerateBtn);
+toggleKeyBtn.addEventListener('click', () => {
+  if (apiKeyInput.type === 'password') {
+    apiKeyInput.type = 'text';
+    toggleKeyBtn.textContent = 'Hide';
+  } else {
+    apiKeyInput.type = 'password';
+    toggleKeyBtn.textContent = 'Show';
+  }
+});
+
+function updateGenerateBtn() {
+  generateBtn.disabled = !selectedFile || !apiKeyInput.value.trim();
+}
 
 // --- File handling ---
 uploadZone.addEventListener('click', (e) => {
@@ -374,7 +465,7 @@ function selectFile(file) {
   uploadPrompt.style.display = 'none';
   fileInfo.style.display = 'flex';
   uploadZone.classList.add('has-file');
-  generateBtn.disabled = false;
+  updateGenerateBtn();
   hideError();
   downloadBtn.classList.remove('active');
   draftBtn.classList.remove('active');
@@ -384,7 +475,7 @@ function selectFile(file) {
 function clearFile() {
   selectedFile = null; fileInput.value = '';
   uploadPrompt.style.display = ''; fileInfo.style.display = 'none';
-  uploadZone.classList.remove('has-file'); generateBtn.disabled = true;
+  uploadZone.classList.remove('has-file'); updateGenerateBtn();
 }
 
 // --- Generation ---
@@ -392,12 +483,20 @@ generateBtn.addEventListener('click', handleGenerate);
 
 async function handleGenerate() {
   if (!selectedFile) return;
+  const userKey = apiKeyInput.value.trim();
+  if (!userKey) { showError('Please enter your Gemini API key.'); return; }
+
+  // Save key to localStorage for next time
+  localStorage.setItem('gemini_api_key', userKey);
+
   hideError();
   draftBtn.classList.remove('active');
   downloadBtn.classList.remove('active');
   doneBanner.classList.remove('active');
   activityFeed.innerHTML = '';
   activityFeed.classList.remove('active');
+  thinkingBox.classList.remove('active');
+  thinkingContent.textContent = '';
   stepsSection.classList.add('active');
   generateBtn.disabled = true;
   generateBtn.textContent = 'Generating...';
@@ -407,6 +506,7 @@ async function handleGenerate() {
 
   const formData = new FormData();
   formData.append('file', selectedFile);
+  formData.append('api_key', userKey);
 
   try {
     const response = await fetch('/api/generate', { method: 'POST', body: formData });
@@ -426,7 +526,10 @@ async function handleGenerate() {
       buffer = parts.pop();
 
       for (const part of parts) {
-        if (part.startsWith('event: progress')) {
+        if (part.startsWith('event: thinking')) {
+          const dl = part.split('\n').find(l => l.startsWith('data: '));
+          if (dl) handleThinking(JSON.parse(dl.slice(6)));
+        } else if (part.startsWith('event: progress')) {
           const dl = part.split('\n').find(l => l.startsWith('data: '));
           if (dl) handleProgress(JSON.parse(dl.slice(6)));
         } else if (part.startsWith('event: draft_ready')) {
@@ -451,6 +554,17 @@ const spinnerTexts = {
   3: 'Writing PyTorch code...',
   4: 'Reviewing for errors...',
 };
+
+function handleThinking(data) {
+  thinkingBox.classList.add('active');
+  thinkingContent.textContent += data.text;
+  // Keep only last 2000 chars to avoid memory bloat
+  if (thinkingContent.textContent.length > 2000) {
+    thinkingContent.textContent = thinkingContent.textContent.slice(-1500);
+  }
+  // Auto-scroll to bottom
+  thinkingContent.scrollTop = thinkingContent.scrollHeight;
+}
 
 function handleProgress(data) {
   const { step, name, detail, extra } = data;
@@ -500,11 +614,12 @@ function handleDraftReady(data) {
 function handleComplete(data) {
   completeAllSteps();
   hideSpinner();
+  thinkingBox.classList.remove('active');
   draftBtn.classList.remove('active');
   downloadBtn.href = `/api/download/${data.job_id}`;
   downloadBtn.classList.add('active');
   generateBtn.textContent = 'Generate Another';
-  generateBtn.disabled = false;
+  updateGenerateBtn();
 }
 
 function handleError(data) {
@@ -576,8 +691,9 @@ function showError(msg) { errorBox.textContent = msg; errorBox.classList.add('ac
 function hideError() { errorBox.classList.remove('active'); }
 function resetBtn() {
   generateBtn.textContent = 'Generate Notebook';
-  generateBtn.disabled = !selectedFile;
+  updateGenerateBtn();
   hideSpinner();
+  thinkingBox.classList.remove('active');
 }
 
 function esc(str) {

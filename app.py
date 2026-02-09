@@ -8,38 +8,23 @@ import tempfile
 import uuid
 from pathlib import Path
 
-from fastapi import FastAPI, File, UploadFile, Request, HTTPException
+from fastapi import FastAPI, File, Form, UploadFile, Request, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
-from starlette.responses import JSONResponse
-from slowapi import Limiter
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
 
 from config import MAX_PDF_SIZE_MB, DEFAULT_MODEL
 from web_pipeline import run_web_pipeline
 
 # --- Configuration ---
-RATE_LIMIT = os.environ.get("RATE_LIMIT", "10/hour")
 MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", str(MAX_PDF_SIZE_MB)))
 
 # --- App setup ---
-limiter = Limiter(key_func=get_remote_address)
-app = FastAPI(title="Paper to Notebook", version="1.2", docs_url=None, redoc_url=None)
-app.state.limiter = limiter
+app = FastAPI(title="Paper to Notebook", version="1.3", docs_url=None, redoc_url=None)
 
 # Temp directory for generated notebooks
 TEMP_DIR = tempfile.mkdtemp(prefix="paper2nb_")
 
 # Concurrency limiter
 _generation_semaphore = asyncio.Semaphore(3)
-
-
-@app.exception_handler(RateLimitExceeded)
-async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
-    return JSONResponse(
-        status_code=429,
-        content={"error": "Rate limit exceeded. Please try again later."},
-    )
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -49,10 +34,13 @@ async def index():
 
 
 @app.post("/api/generate")
-@limiter.limit(RATE_LIMIT)
-async def generate(request: Request, file: UploadFile = File(...)):
+async def generate(request: Request, file: UploadFile = File(...), api_key: str = Form(...)):
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(400, "File must be a PDF")
+
+    api_key = api_key.strip()
+    if not api_key:
+        raise HTTPException(400, "Gemini API key is required")
 
     pdf_bytes = await file.read()
     size_mb = len(pdf_bytes) / (1024 * 1024)
@@ -72,11 +60,20 @@ async def generate(request: Request, file: UploadFile = File(...)):
                 loop,
             )
 
+        def on_thinking(text: str):
+            asyncio.run_coroutine_threadsafe(
+                progress_queue.put(("thinking", text)),
+                loop,
+            )
+
         async def run_in_thread():
             async with _generation_semaphore:
                 return await loop.run_in_executor(
                     None,
-                    lambda: run_web_pipeline(pdf_bytes, DEFAULT_MODEL, on_progress),
+                    lambda: run_web_pipeline(
+                        pdf_bytes, DEFAULT_MODEL, on_progress,
+                        api_key=api_key, on_thinking=on_thinking,
+                    ),
                 )
 
         task = asyncio.create_task(run_in_thread())
@@ -84,6 +81,13 @@ async def generate(request: Request, file: UploadFile = File(...)):
         while not task.done():
             try:
                 event = await asyncio.wait_for(progress_queue.get(), timeout=1.0)
+
+                # Handle thinking events
+                if event[0] == "thinking":
+                    data = json.dumps({"text": event[1]})
+                    yield f"event: thinking\ndata: {data}\n\n"
+                    continue
+
                 _, step, name, detail, extra = event
 
                 # Check if this progress event carries draft notebook bytes
@@ -110,6 +114,8 @@ async def generate(request: Request, file: UploadFile = File(...)):
         # Drain remaining
         while not progress_queue.empty():
             event = await progress_queue.get()
+            if event[0] == "thinking":
+                continue
             _, step, name, detail, extra = event
             if extra and "draft_bytes" in extra:
                 extra.pop("draft_bytes")

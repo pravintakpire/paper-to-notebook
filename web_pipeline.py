@@ -27,6 +27,7 @@ from prompts import (
 
 # callback(step_number, step_name, detail_message, extra_data)
 ProgressCallback = Callable[[int, str, str, Optional[dict]], None]
+ThinkingCallback = Callable[[str], None]
 
 
 def _nb_to_bytes(nb: nbformat.NotebookNode) -> bytes:
@@ -44,6 +45,8 @@ def run_web_pipeline(
     pdf_bytes: bytes,
     model: str = DEFAULT_MODEL,
     on_progress: Optional[ProgressCallback] = None,
+    api_key: Optional[str] = None,
+    on_thinking: Optional[ThinkingCallback] = None,
 ) -> bytes:
     """Run the full pipeline on PDF bytes, returning .ipynb bytes."""
 
@@ -60,8 +63,10 @@ def run_web_pipeline(
         user_content=[pdf_part, ANALYSIS_PROMPT],
         max_tokens=MAX_TOKENS_ANALYSIS,
         model=model,
+        api_key=api_key,
+        on_thinking=on_thinking,
     )
-    analysis = parse_llm_json(analysis_raw, "paper_analysis", model)
+    analysis = parse_llm_json(analysis_raw, "paper_analysis", model, api_key=api_key)
     title = analysis.get("title", "Unknown Paper")
     num_algos = len(analysis.get("algorithms", []))
     _notify(1, "Analyzing paper", f"Found: {title}", {
@@ -82,8 +87,10 @@ def run_web_pipeline(
         user_content=[pdf_part, design_prompt],
         max_tokens=MAX_TOKENS_DESIGN,
         model=model,
+        api_key=api_key,
+        on_thinking=on_thinking,
     )
-    design = parse_llm_json(design_raw, "toy_design", model)
+    design = parse_llm_json(design_raw, "toy_design", model, api_key=api_key)
     arch = design.get("model_architecture", {})
     _notify(2, "Designing implementation", "Architecture designed", {
         "type": "design",
@@ -105,8 +112,10 @@ def run_web_pipeline(
         user_content=[pdf_part, generate_prompt],
         max_tokens=MAX_TOKENS_GENERATE,
         model=model,
+        api_key=api_key,
+        on_thinking=on_thinking,
     )
-    cells = parse_llm_json(cells_raw, "generate_cells", model)
+    cells = parse_llm_json(cells_raw, "generate_cells", model, api_key=api_key)
     num_cells = len(cells)
     code_cells = sum(1 for c in cells if c.get("cell_type") == "code")
     previews = []
@@ -136,8 +145,10 @@ def run_web_pipeline(
         user_content=[validate_prompt],
         max_tokens=MAX_TOKENS_VALIDATE,
         model=model,
+        api_key=api_key,
+        on_thinking=on_thinking,
     )
-    validated_cells = parse_llm_json(validated_raw, "validate", model)
+    validated_cells = parse_llm_json(validated_raw, "validate", model, api_key=api_key)
     _notify(4, "Validating code", "Validation complete")
 
     # Build and return validated notebook
