@@ -1,0 +1,32 @@
+sequenceDiagram
+    participant U as User
+    participant S as Web Server (FastAPI)
+    participant P as Pipeline
+    participant G as Gemini API
+    participant FS as File System
+
+    U->>S: POST /api/generate (PDF)
+    S->>P: Run Pipeline (Background Task)
+    S-->>U: Server-Sent Events (Stream Start)
+
+    Note over P, G: Step 1: Analysis
+    P->>G: Send PDF + Analysis Prompt
+    G-->>P: Structured Approach JSON
+
+    Note over P, G: Step 2: Design
+    P->>G: Analysis JSON + Design Prompt
+    G-->>P: Implementation Plan JSON
+
+    Note over P, G: Step 3: Generation
+    P->>G: Design JSON + Code Prompt
+    G-->>P: Raw Notebook Cells JSON
+
+    Note over P, G: Step 4: Validation
+    P->>G: Cells JSON + Review Prompt
+    G-->>P: Validated Cells JSON
+
+    P->>FS: Save .ipynb file
+    P-->>S: Task Complete
+    S-->>U: Event: "Complete" (Download Link)
+    U->>S: GET /api/download/{job_id}
+    S-->>U: File Response (.ipynb)
