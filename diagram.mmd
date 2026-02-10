@@ -1,0 +1,13 @@
+flowchart TD
+    User([User]) -->|Upload PDF| API[FastAPI Server]
+    API -->|Start Job| Pipeline{Pipeline Orchestrator}
+    
+    subgraph AI[AI Processing]
+        Pipeline -->|1. Analyze| Analysis[Paper Analysis]
+        Analysis -->|2. Plan| Design[Toy Implementation Design]
+        Design -->|3. Code| Gen[Code Generation]
+        Gen -->|4. Refine| Validate[Validation & Repair]
+    end
+    
+    Validate -->|Save| NB[(Generated .ipynb)]
+    NB -->|Download| User

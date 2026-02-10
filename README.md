@@ -15,21 +15,7 @@
 
 The system uses a multi-stage "Agentic" pipeline to ensure code quality.
 
-```mermaid
-graph TD
-    User[User] -->|Upload PDF| API[FastAPI Server]
-    API -->|Start Job| Pipeline[Pipeline Orchestrator]
-    
-    subgraph "AI Processing (GPT-4o)"
-        Pipeline -->|1. Analyze| Analysis[Paper Analysis]
-        Analysis -->|2. Plan| Design[Toy Implementation Design]
-        Design -->|3. Code| Gen[Code Generation]
-        Gen -->|4. Refine| Validate[Validation & Repair]
-    end
-    
-    Validate -->|Save| NB[(Generated .ipynb)]
-    NB -->|Download| User
-```
+![Architecture Diagram](https://mermaid.ink/img/Z3JhcGggVEQKICAgIFVzZXIoVXNlcikgLS0+fFVwbG9hZCBQREZ8IEFQSVtGYXN0QVBJIFNlcnZlcl0KICAgIEFQSSAtLT58U3RhcnQgSm9ifCBQaXBlbGluZXtQaXBlbGluZSBPcmNoZXN0cmF0b3J9CiAgICAKICAgIFBpcGVsaW5lIC0tPnwxLiBBbmFseXplfCBBbmFseXNpc1tQYXBlciBBbmFseXNpc10KICAgIEFuYWx5c2lzIC0tPnwyLiBQbGFufCBEZXNpZ25bVG95IEltcGxlbWVudGF0aW9uIERlc2lnbl0KICAgIERlc2lnbiAtLT58My4gQ29kZXwgR2VuW0NvZGUgR2VuZXJhdGlvbl0KICAgIEdlbiAtLT58NC4gUmVmaW5lfCBWYWxpZGF0ZVtWYWxpZGF0aW9uICYgUmVwYWlyXQogICAgCiAgICBWYWxpZGF0ZSAtLT58U2F2ZXwgTkJbKEdlbmVyYXRlZCAuaXB5bmIpXQogICAgTkIgLS0+fERvd25sb2FkfCBVc2Vy)
 
 ## 📦 Installation
 
