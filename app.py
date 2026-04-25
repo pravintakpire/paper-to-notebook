@@ -1,4 +1,4 @@
-"""FastAPI web application for the paper-to-notebook tool."""
+"""FastAPI web application for the paper-to-code tool."""
 from __future__ import annotations
 
 import asyncio
@@ -11,20 +11,31 @@ from pathlib import Path
 from fastapi import FastAPI, File, Form, UploadFile, Request, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
 
-from config import MAX_PDF_SIZE_MB, DEFAULT_MODEL
+from config import (
+    DEFAULT_OPENAI_MODEL,
+    DEFAULT_GEMINI_MODEL,
+    DEFAULT_LOCAL_MODEL,
+    DEFAULT_LOCAL_BASE_URL,
+    MAX_PDF_SIZE_MB,
+    PROVIDER_OPENAI,
+    PROVIDER_GEMINI,
+    PROVIDER_LOCAL,
+)
 from web_pipeline import run_web_pipeline
 
-# --- Configuration ---
 MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", str(MAX_PDF_SIZE_MB)))
 
-# --- App setup ---
-app = FastAPI(title="Paper to Notebook", version="1.3", docs_url=None, redoc_url=None)
+app = FastAPI(title="Paper to Code", version="2.0", docs_url=None, redoc_url=None)
 
-# Temp directory for generated notebooks
-TEMP_DIR = tempfile.mkdtemp(prefix="paper2nb_")
+TEMP_DIR = tempfile.mkdtemp(prefix="paper2code_")
 
-# Concurrency limiter
 _generation_semaphore = asyncio.Semaphore(3)
+
+_PROVIDER_DEFAULTS = {
+    PROVIDER_OPENAI: DEFAULT_OPENAI_MODEL,
+    PROVIDER_GEMINI: DEFAULT_GEMINI_MODEL,
+    PROVIDER_LOCAL:  DEFAULT_LOCAL_MODEL,
+}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -34,13 +45,27 @@ async def index():
 
 
 @app.post("/api/generate")
-async def generate(request: Request, file: UploadFile = File(...), api_key: str = Form(...)):
+async def generate(
+    request: Request,
+    file: UploadFile = File(...),
+    provider: str = Form(...),
+    api_key: str = Form(""),
+    base_url: str = Form(""),
+    model: str = Form(""),
+):
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(400, "File must be a PDF")
 
+    provider = provider.strip().lower()
+    if provider not in (PROVIDER_OPENAI, PROVIDER_GEMINI, PROVIDER_LOCAL):
+        raise HTTPException(400, f"Unknown provider: {provider}")
+
     api_key = api_key.strip()
-    if not api_key:
-        raise HTTPException(400, "OpenAI API key is required")
+    if provider in (PROVIDER_OPENAI, PROVIDER_GEMINI) and not api_key:
+        raise HTTPException(400, f"API key is required for {provider}")
+
+    resolved_model = model.strip() or _PROVIDER_DEFAULTS[provider]
+    resolved_base_url = base_url.strip() or (DEFAULT_LOCAL_BASE_URL if provider == PROVIDER_LOCAL else None)
 
     pdf_bytes = await file.read()
     size_mb = len(pdf_bytes) / (1024 * 1024)
@@ -71,8 +96,13 @@ async def generate(request: Request, file: UploadFile = File(...), api_key: str 
                 return await loop.run_in_executor(
                     None,
                     lambda: run_web_pipeline(
-                        pdf_bytes, DEFAULT_MODEL, on_progress,
-                        api_key=api_key, on_thinking=on_thinking,
+                        pdf_bytes,
+                        model=resolved_model,
+                        on_progress=on_progress,
+                        provider=provider,
+                        api_key=api_key or None,
+                        base_url=resolved_base_url,
+                        on_thinking=on_thinking,
                     ),
                 )
 
@@ -82,36 +112,30 @@ async def generate(request: Request, file: UploadFile = File(...), api_key: str 
             try:
                 event = await asyncio.wait_for(progress_queue.get(), timeout=1.0)
 
-                # Handle thinking events
                 if event[0] == "thinking":
-                    data = json.dumps({"text": event[1]})
-                    yield f"event: thinking\ndata: {data}\n\n"
+                    yield f"event: thinking\ndata: {json.dumps({'text': event[1]})}\n\n"
                     continue
 
                 _, step, name, detail, extra = event
 
-                # Check if this progress event carries draft notebook bytes
                 if extra and "draft_bytes" in extra:
                     draft_bytes = extra.pop("draft_bytes")
-                    # Save draft to disk
                     draft_path = os.path.join(TEMP_DIR, f"{draft_id}.ipynb")
                     with open(draft_path, "wb") as f:
                         f.write(draft_bytes)
-                    # Send progress event (without the bytes)
                     data = {"step": step, "name": name, "detail": detail, "extra": extra}
                     yield f"event: progress\ndata: {json.dumps(data)}\n\n"
-                    # Send draft_ready event
-                    draft_data = json.dumps({"job_id": draft_id, "size_kb": len(draft_bytes) // 1024})
-                    yield f"event: draft_ready\ndata: {draft_data}\n\n"
+                    yield f"event: draft_ready\ndata: {json.dumps({'job_id': draft_id, 'size_kb': len(draft_bytes) // 1024})}\n\n"
                 else:
                     data = {"step": step, "name": name, "detail": detail}
                     if extra:
                         data["extra"] = extra
                     yield f"event: progress\ndata: {json.dumps(data)}\n\n"
+
             except asyncio.TimeoutError:
                 yield f": keepalive\n\n"
 
-        # Drain remaining
+        # Drain remaining events
         while not progress_queue.empty():
             event = await progress_queue.get()
             if event[0] == "thinking":
@@ -129,11 +153,9 @@ async def generate(request: Request, file: UploadFile = File(...), api_key: str 
             output_path = os.path.join(TEMP_DIR, f"{job_id}.ipynb")
             with open(output_path, "wb") as f:
                 f.write(notebook_bytes)
-            data = json.dumps({"job_id": job_id, "size_kb": len(notebook_bytes) // 1024})
-            yield f"event: complete\ndata: {data}\n\n"
+            yield f"event: complete\ndata: {json.dumps({'job_id': job_id, 'size_kb': len(notebook_bytes) // 1024})}\n\n"
         except Exception as e:
-            data = json.dumps({"error": str(e)})
-            yield f"event: error\ndata: {data}\n\n"
+            yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
 
     return StreamingResponse(
         event_stream(),

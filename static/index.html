@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Paper to Notebook</title>
+<title>Paper to Code</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -263,13 +263,27 @@
   .done-banner p { color: var(--text-dim); font-size: 0.85rem; }
   .done-banner strong { color: var(--text); }
 
-  /* === API KEY === */
-  .api-key-section {
+  /* === PROVIDER & API KEY === */
+  .provider-section {
     margin-top: 16px;
     animation: fadeUp 0.5s ease 0.15s both;
   }
-  .api-key-label {
+  .section-label {
     font-size: 0.85rem; font-weight: 600; margin-bottom: 8px; display: block;
+  }
+  .provider-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .provider-tab {
+    flex: 1; padding: 9px 0; border: 1px solid var(--border); border-radius: var(--radius-sm);
+    background: var(--surface2); color: var(--text-dim); font-size: 0.82rem; font-weight: 600;
+    cursor: pointer; text-align: center; transition: all 0.15s;
+  }
+  .provider-tab:hover { border-color: var(--accent); color: var(--text); }
+  .provider-tab.active { border-color: var(--accent); background: rgba(108,99,255,0.1); color: var(--accent); }
+
+  .api-key-section { display: none; }
+  .api-key-section.visible { display: block; }
+  .api-key-label {
+    font-size: 0.82rem; font-weight: 600; margin-bottom: 6px; display: block; color: var(--text-dim);
   }
   .api-key-row { display: flex; gap: 8px; }
   .api-key-input {
@@ -289,6 +303,16 @@
   }
   .api-key-help a { color: var(--accent); text-decoration: none; }
   .api-key-help a:hover { text-decoration: underline; }
+
+  .local-section { display: none; }
+  .local-section.visible { display: block; }
+  .text-input {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 10px 14px; color: var(--text);
+    font-size: 0.85rem; font-family: var(--mono); outline: none; transition: border-color 0.2s;
+    box-sizing: border-box;
+  }
+  .text-input:focus { border-color: var(--accent); }
 
   /* === THINKING BOX === */
   .thinking-box {
@@ -324,7 +348,7 @@
 
 <div class="wrapper">
   <div class="header">
-    <h1>Paper to Notebook</h1>
+    <h1>Paper to Code</h1>
     <p>Upload a research paper PDF &mdash; get a runnable PyTorch notebook.</p>
   </div>
 
@@ -345,16 +369,45 @@
     <input type="file" id="fileInput" accept=".pdf">
   </div>
 
-  <!-- API Key -->
-  <div class="api-key-section">
-    <label class="api-key-label" for="apiKeyInput">OpenAI API Key</label>
-    <div class="api-key-row">
-      <input type="password" class="api-key-input" id="apiKeyInput" placeholder="sk-..." autocomplete="off">
-      <button type="button" class="toggle-key-btn" id="toggleKeyBtn" title="Show/hide key">Show</button>
+  <!-- Provider selector -->
+  <div class="provider-section">
+    <span class="section-label">LLM Provider</span>
+    <div class="provider-tabs">
+      <button class="provider-tab active" data-provider="openai">OpenAI</button>
+      <button class="provider-tab" data-provider="gemini">Gemini</button>
+      <button class="provider-tab" data-provider="local">Local</button>
     </div>
-    <p class="api-key-help">
-      <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">Get your API key</a> from OpenAI platform.
-    </p>
+
+    <!-- OpenAI key -->
+    <div class="api-key-section visible" id="openaiSection">
+      <label class="api-key-label" for="openaiKeyInput">OpenAI API Key</label>
+      <div class="api-key-row">
+        <input type="password" class="api-key-input" id="openaiKeyInput" placeholder="sk-..." autocomplete="off">
+        <button type="button" class="toggle-key-btn" data-target="openaiKeyInput">Show</button>
+      </div>
+      <p class="api-key-help">
+        <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">Get your key</a> &middot; Default model: gpt-4o
+      </p>
+    </div>
+
+    <!-- Gemini key -->
+    <div class="api-key-section" id="geminiSection">
+      <label class="api-key-label" for="geminiKeyInput">Gemini API Key</label>
+      <div class="api-key-row">
+        <input type="password" class="api-key-input" id="geminiKeyInput" placeholder="AIza..." autocomplete="off">
+        <button type="button" class="toggle-key-btn" data-target="geminiKeyInput">Show</button>
+      </div>
+      <p class="api-key-help">
+        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Get your key</a> &middot; Default model: gemini-2.0-flash
+      </p>
+    </div>
+
+    <!-- Local -->
+    <div class="local-section" id="localSection">
+      <label class="api-key-label" for="baseUrlInput">Ollama Base URL</label>
+      <input type="text" class="text-input" id="baseUrlInput" value="http://localhost:11434/v1" autocomplete="off">
+      <p class="api-key-help">Requires a running <a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a> instance &middot; Default model: llama3</p>
+    </div>
   </div>
 
   <button class="btn btn-primary" id="generateBtn" disabled>Generate Notebook</button>
@@ -396,52 +449,78 @@
   <a class="btn btn-download" id="downloadBtn" href="#">Download Validated .ipynb</a>
 
   <div class="footer">
-    Powered by OpenAI GPT-4o &middot; Real PyTorch implementations &middot; Bring your own API key
+    OpenAI &middot; Gemini &middot; Local &mdash; Real PyTorch implementations &middot; Bring your own API key
   </div>
 </div>
 
 <script>
-const uploadZone = document.getElementById('uploadZone');
-const fileInput = document.getElementById('fileInput');
-const uploadPrompt = document.getElementById('uploadPrompt');
-const fileInfo = document.getElementById('fileInfo');
-const fileName = document.getElementById('fileName');
-const fileSize = document.getElementById('fileSize');
-const removeBtn = document.getElementById('removeBtn');
-const apiKeyInput = document.getElementById('apiKeyInput');
-const toggleKeyBtn = document.getElementById('toggleKeyBtn');
-const generateBtn = document.getElementById('generateBtn');
-const draftBtn = document.getElementById('draftBtn');
-const downloadBtn = document.getElementById('downloadBtn');
-const stepsSection = document.getElementById('stepsSection');
-const errorBox = document.getElementById('errorBox');
-const spinner = document.getElementById('spinner');
-const spinnerLabel = document.getElementById('spinnerLabel');
-const thinkingBox = document.getElementById('thinkingBox');
+// --- DOM refs ---
+const uploadZone    = document.getElementById('uploadZone');
+const fileInput     = document.getElementById('fileInput');
+const uploadPrompt  = document.getElementById('uploadPrompt');
+const fileInfo      = document.getElementById('fileInfo');
+const fileName      = document.getElementById('fileName');
+const fileSize      = document.getElementById('fileSize');
+const removeBtn     = document.getElementById('removeBtn');
+const generateBtn   = document.getElementById('generateBtn');
+const draftBtn      = document.getElementById('draftBtn');
+const downloadBtn   = document.getElementById('downloadBtn');
+const stepsSection  = document.getElementById('stepsSection');
+const errorBox      = document.getElementById('errorBox');
+const spinner       = document.getElementById('spinner');
+const spinnerLabel  = document.getElementById('spinnerLabel');
+const thinkingBox   = document.getElementById('thinkingBox');
 const thinkingContent = document.getElementById('thinkingContent');
-const activityFeed = document.getElementById('activityFeed');
-const doneBanner = document.getElementById('doneBanner');
+const activityFeed  = document.getElementById('activityFeed');
+const doneBanner    = document.getElementById('doneBanner');
+
+const openaiKeyInput = document.getElementById('openaiKeyInput');
+const geminiKeyInput = document.getElementById('geminiKeyInput');
+const baseUrlInput   = document.getElementById('baseUrlInput');
 
 let selectedFile = null;
+let activeProvider = 'openai';
 
-// --- API Key handling ---
-// Load saved key from localStorage
-const savedKey = localStorage.getItem('openai_api_key');
-if (savedKey) { apiKeyInput.value = savedKey; }
-
-apiKeyInput.addEventListener('input', updateGenerateBtn);
-toggleKeyBtn.addEventListener('click', () => {
-  if (apiKeyInput.type === 'password') {
-    apiKeyInput.type = 'text';
-    toggleKeyBtn.textContent = 'Hide';
-  } else {
-    apiKeyInput.type = 'password';
-    toggleKeyBtn.textContent = 'Show';
-  }
+// --- Provider tabs ---
+document.querySelectorAll('.provider-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    activeProvider = tab.dataset.provider;
+    document.querySelectorAll('.provider-tab').forEach(t => t.classList.toggle('active', t === tab));
+    document.getElementById('openaiSection').classList.toggle('visible', activeProvider === 'openai');
+    document.getElementById('geminiSection').classList.toggle('visible', activeProvider === 'gemini');
+    document.getElementById('localSection').classList.toggle('visible', activeProvider === 'local');
+    updateGenerateBtn();
+  });
 });
 
+// --- Toggle key visibility ---
+document.querySelectorAll('.toggle-key-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const input = document.getElementById(btn.dataset.target);
+    if (input.type === 'password') { input.type = 'text'; btn.textContent = 'Hide'; }
+    else { input.type = 'password'; btn.textContent = 'Show'; }
+  });
+});
+
+// --- Restore saved keys ---
+const savedOpenAI = localStorage.getItem('p2c_openai_key');
+const savedGemini = localStorage.getItem('p2c_gemini_key');
+if (savedOpenAI) openaiKeyInput.value = savedOpenAI;
+if (savedGemini) geminiKeyInput.value = savedGemini;
+
+openaiKeyInput.addEventListener('input', updateGenerateBtn);
+geminiKeyInput.addEventListener('input', updateGenerateBtn);
+baseUrlInput.addEventListener('input', updateGenerateBtn);
+
+function getActiveKey() {
+  if (activeProvider === 'openai') return openaiKeyInput.value.trim();
+  if (activeProvider === 'gemini') return geminiKeyInput.value.trim();
+  return '';
+}
+
 function updateGenerateBtn() {
-  generateBtn.disabled = !selectedFile || !apiKeyInput.value.trim();
+  const needsKey = activeProvider !== 'local';
+  generateBtn.disabled = !selectedFile || (needsKey && !getActiveKey());
 }
 
 // --- File handling ---
@@ -452,7 +531,10 @@ uploadZone.addEventListener('click', (e) => {
 fileInput.addEventListener('change', () => { if (fileInput.files.length) selectFile(fileInput.files[0]); });
 uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
 uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
-uploadZone.addEventListener('drop', (e) => { e.preventDefault(); uploadZone.classList.remove('drag-over'); if (e.dataTransfer.files.length) selectFile(e.dataTransfer.files[0]); });
+uploadZone.addEventListener('drop', (e) => {
+  e.preventDefault(); uploadZone.classList.remove('drag-over');
+  if (e.dataTransfer.files.length) selectFile(e.dataTransfer.files[0]);
+});
 removeBtn.addEventListener('click', (e) => { e.stopPropagation(); clearFile(); });
 
 function selectFile(file) {
@@ -483,11 +565,15 @@ generateBtn.addEventListener('click', handleGenerate);
 
 async function handleGenerate() {
   if (!selectedFile) return;
-  const userKey = apiKeyInput.value.trim();
-  if (!userKey) { showError('Please enter your OpenAI API key.'); return; }
+  const apiKey = getActiveKey();
+  if (activeProvider !== 'local' && !apiKey) {
+    showError(`Please enter your ${activeProvider === 'openai' ? 'OpenAI' : 'Gemini'} API key.`);
+    return;
+  }
 
-  // Save key to localStorage for next time
-  localStorage.setItem('openai_api_key', userKey);
+  // Persist keys
+  if (activeProvider === 'openai') localStorage.setItem('p2c_openai_key', apiKey);
+  if (activeProvider === 'gemini') localStorage.setItem('p2c_gemini_key', apiKey);
 
   hideError();
   draftBtn.classList.remove('active');
@@ -506,13 +592,20 @@ async function handleGenerate() {
 
   const formData = new FormData();
   formData.append('file', selectedFile);
-  formData.append('api_key', userKey);
+  formData.append('provider', activeProvider);
+  formData.append('api_key', apiKey);
+  formData.append('base_url', activeProvider === 'local' ? baseUrlInput.value.trim() : '');
+  formData.append('model', '');
 
   try {
     const response = await fetch('/api/generate', { method: 'POST', body: formData });
     if (response.status === 429) { showError('Rate limit reached. Please try again later.'); resetBtn(); return; }
     if (response.status === 413) { showError('PDF too large. Maximum is 30 MB.'); resetBtn(); return; }
-    if (!response.ok) { showError(`Server error (${response.status}).`); resetBtn(); return; }
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      showError(`Server error (${response.status}): ${text.slice(0, 200)}`);
+      resetBtn(); return;
+    }
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -526,28 +619,20 @@ async function handleGenerate() {
       buffer = parts.pop();
 
       for (const part of parts) {
-        if (part.startsWith('event: thinking')) {
-          const dl = part.split('\n').find(l => l.startsWith('data: '));
-          if (dl) handleThinking(JSON.parse(dl.slice(6)));
-        } else if (part.startsWith('event: progress')) {
-          const dl = part.split('\n').find(l => l.startsWith('data: '));
-          if (dl) handleProgress(JSON.parse(dl.slice(6)));
-        } else if (part.startsWith('event: draft_ready')) {
-          const dl = part.split('\n').find(l => l.startsWith('data: '));
-          if (dl) handleDraftReady(JSON.parse(dl.slice(6)));
-        } else if (part.startsWith('event: complete')) {
-          const dl = part.split('\n').find(l => l.startsWith('data: '));
-          if (dl) handleComplete(JSON.parse(dl.slice(6)));
-        } else if (part.startsWith('event: error')) {
-          const dl = part.split('\n').find(l => l.startsWith('data: '));
-          if (dl) handleError(JSON.parse(dl.slice(6)));
-        }
+        const dl = part.split('\n').find(l => l.startsWith('data: '));
+        if (!dl) continue;
+        const data = JSON.parse(dl.slice(6));
+        if (part.startsWith('event: thinking'))    handleThinking(data);
+        else if (part.startsWith('event: progress'))    handleProgress(data);
+        else if (part.startsWith('event: draft_ready')) handleDraftReady(data);
+        else if (part.startsWith('event: complete'))    handleComplete(data);
+        else if (part.startsWith('event: error'))       handleServerError(data);
       }
     }
   } catch (err) { showError('Connection lost. Please try again.'); resetBtn(); }
 }
 
-// --- Progress ---
+// --- Event handlers ---
 const spinnerTexts = {
   1: 'Analyzing paper structure...',
   2: 'Designing architecture...',
@@ -558,29 +643,23 @@ const spinnerTexts = {
 function handleThinking(data) {
   thinkingBox.classList.add('active');
   thinkingContent.textContent += data.text;
-  // Keep only last 2000 chars to avoid memory bloat
-  if (thinkingContent.textContent.length > 2000) {
+  if (thinkingContent.textContent.length > 2000)
     thinkingContent.textContent = thinkingContent.textContent.slice(-1500);
-  }
-  // Auto-scroll to bottom
   thinkingContent.scrollTop = thinkingContent.scrollHeight;
 }
 
 function handleProgress(data) {
-  const { step, name, detail, extra } = data;
+  const { step, detail, extra } = data;
   updateStep(step, detail);
   showSpinner(spinnerTexts[step] || 'Processing...');
-
   if (!extra) return;
   activityFeed.classList.add('active');
-
   if (extra.type === 'analysis') {
     addCard('Paper Analysis', extra.title,
       `<p>${esc(extra.problem || '')}</p>
        <p style="margin-top:6px;"><strong>Key insight:</strong> ${esc(extra.insight || '')}</p>
        <div class="meta"><span class="meta-tag">${extra.algorithms} algorithm(s)</span></div>`);
-  }
-  else if (extra.type === 'design') {
+  } else if (extra.type === 'design') {
     addCard('Architecture', extra.notebook_title || 'Implementation Plan',
       `<div class="meta">
          <span class="meta-tag">${esc(extra.model_type || 'Transformer')}</span>
@@ -588,18 +667,14 @@ function handleProgress(data) {
          <span class="meta-tag">${esc(String(extra.num_layers || '?'))} layers</span>
          <span class="meta-tag">${esc(String(extra.num_heads || '?'))} heads</span>
        </div>`);
-  }
-  else if (extra.type === 'cells_generated') {
+  } else if (extra.type === 'cells_generated') {
     let html = '';
-    const previews = (extra.previews || []).slice(0, 3);
-    for (const p of previews) {
-      if (p.type === 'code') {
+    for (const p of (extra.previews || []).slice(0, 3)) {
+      if (p.type === 'code')
         html += `<div class="code-preview">${esc(p.preview)}${p.preview.length >= 300 ? '...' : ''}</div>`;
-      }
     }
-    if (extra.num_cells > 3) {
+    if (extra.num_cells > 3)
       html += `<p style="margin-top:8px;color:var(--text-muted);font-size:0.78rem;">+ ${extra.num_cells - 3} more cells</p>`;
-    }
     addCard('Notebook Generated', `${extra.num_cells} cells (${extra.code_cells} code)`, html);
   }
 }
@@ -622,7 +697,7 @@ function handleComplete(data) {
   updateGenerateBtn();
 }
 
-function handleError(data) {
+function handleServerError(data) {
   showError(`Generation failed: ${data.error}`);
   resetBtn();
   hideSpinner();
@@ -635,18 +710,15 @@ function resetSteps() {
     document.getElementById(`step${i}Detail`).textContent = '';
   }
 }
-
 function updateStep(step, detail) {
   for (let i = 1; i < step; i++) {
     const el = document.getElementById(`step${i}`);
     el.className = 'step completed';
     el.querySelector('.step-dot').textContent = '\u2713';
   }
-  const cur = document.getElementById(`step${step}`);
-  cur.className = 'step active';
+  document.getElementById(`step${step}`).className = 'step active';
   document.getElementById(`step${step}Detail`).textContent = detail;
 }
-
 function completeAllSteps() {
   for (let i = 1; i <= 4; i++) {
     const el = document.getElementById(`step${i}`);
@@ -656,20 +728,15 @@ function completeAllSteps() {
 }
 
 // --- Spinner with elapsed timer ---
-let spinnerTimer = null;
-let spinnerStart = 0;
-let spinnerBaseText = '';
-
+let spinnerTimer = null, spinnerStart = 0, spinnerBaseText = '';
 function showSpinner(text) {
   spinner.classList.add('active');
   spinnerBaseText = text;
   spinnerLabel.textContent = text;
-  // Reset timer for each new step
   if (spinnerTimer) clearInterval(spinnerTimer);
   spinnerStart = Date.now();
   spinnerTimer = setInterval(() => {
-    const secs = Math.floor((Date.now() - spinnerStart) / 1000);
-    spinnerLabel.textContent = `${spinnerBaseText} (${secs}s)`;
+    spinnerLabel.textContent = `${spinnerBaseText} (${Math.floor((Date.now() - spinnerStart) / 1000)}s)`;
   }, 1000);
 }
 function hideSpinner() {
@@ -695,7 +762,6 @@ function resetBtn() {
   hideSpinner();
   thinkingBox.classList.remove('active');
 }
-
 function esc(str) {
   const d = document.createElement('div');
   d.textContent = str;

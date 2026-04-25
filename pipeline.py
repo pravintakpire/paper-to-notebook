@@ -2,12 +2,14 @@
 
 import json
 import sys
+from typing import Optional
 
 from config import (
     MAX_TOKENS_ANALYSIS,
     MAX_TOKENS_DESIGN,
     MAX_TOKENS_GENERATE,
     MAX_TOKENS_VALIDATE,
+    PROVIDER_OPENAI,
 )
 from llm import call_llm_with_retry, load_pdf_text, parse_llm_json
 from notebook_builder import build_notebook, save_notebook
@@ -30,17 +32,36 @@ def run_pipeline(
     pdf_path: str,
     output_path: str,
     model: str,
+    provider: str = PROVIDER_OPENAI,
+    api_key: Optional[str] = None,
+    base_url: Optional[str] = None,
     verbose: bool = False,
 ) -> None:
-    """Run the full paper-to-notebook pipeline.
+    """Run the full paper-to-code pipeline.
 
     Args:
         pdf_path: Path to the research paper PDF.
         output_path: Where to save the generated .ipynb.
         model: LLM model ID to use.
+        provider: LLM provider (openai, gemini, local).
+        api_key: API key for the provider.
+        base_url: Base URL for local provider.
         verbose: If True, print intermediate JSON outputs.
     """
-    # Load PDF once — reused across all steps
+    def _llm(system_prompt: str, user_content: str, max_tokens: int) -> str:
+        return call_llm_with_retry(
+            system_prompt=system_prompt,
+            user_content=user_content,
+            max_tokens=max_tokens,
+            model=model,
+            provider=provider,
+            api_key=api_key,
+            base_url=base_url,
+        )
+
+    def _parse(raw: str, step: str) -> dict | list:
+        return parse_llm_json(raw, step, model, provider=provider, api_key=api_key, base_url=base_url)
+
     print(f"Loading PDF: {pdf_path}")
     pdf_text = load_pdf_text(pdf_path)
     print(f"  Loaded {len(pdf_text)} characters of text.")
@@ -51,14 +72,10 @@ def run_pipeline(
     _print_step(1, "Analyzing paper")
     print("  Extracting title, algorithms, baselines, metrics...")
 
-    analysis_raw = call_llm_with_retry(
-        system_prompt=SYSTEM_PROMPT,
-        user_content=f"Here is the research paper content:\n\n{pdf_text}\n\nInstructions:\n{ANALYSIS_PROMPT}",
-        max_tokens=MAX_TOKENS_ANALYSIS,
-        model=model,
+    analysis = _parse(
+        _llm(SYSTEM_PROMPT, f"Here is the research paper content:\n\n{pdf_text}\n\nInstructions:\n{ANALYSIS_PROMPT}", MAX_TOKENS_ANALYSIS),
+        "paper_analysis",
     )
-
-    analysis = parse_llm_json(analysis_raw, "paper_analysis", model)
     title = analysis.get("title", "Unknown Paper")
     num_algos = len(analysis.get("algorithms", []))
     print(f"  Paper: {title}")
@@ -74,18 +91,11 @@ def run_pipeline(
     _print_step(2, "Designing toy implementation")
     print("  Planning synthetic data, mock models, experiment loop...")
 
-    design_prompt = DESIGN_PROMPT_TEMPLATE.format(
-        analysis_json=json.dumps(analysis, indent=2)
+    design_prompt = DESIGN_PROMPT_TEMPLATE.format(analysis_json=json.dumps(analysis, indent=2))
+    design = _parse(
+        _llm(SYSTEM_PROMPT, f"Here is the research paper content:\n\n{pdf_text}\n\nInstructions:\n{design_prompt}", MAX_TOKENS_DESIGN),
+        "toy_design",
     )
-
-    design_raw = call_llm_with_retry(
-        system_prompt=SYSTEM_PROMPT,
-        user_content=f"Here is the research paper content:\n\n{pdf_text}\n\nInstructions:\n{design_prompt}",
-        max_tokens=MAX_TOKENS_DESIGN,
-        model=model,
-    )
-
-    design = parse_llm_json(design_raw, "toy_design", model)
     num_mocks = len(design.get("mock_models", []))
     num_viz = len(design.get("visualizations", []))
     print(f"  Mock components: {num_mocks}")
@@ -99,21 +109,16 @@ def run_pipeline(
     # Step 3: Generate Notebook Cells
     # ------------------------------------------------------------------
     _print_step(3, "Generating notebook cells")
-    print("  Writing code and markdown for all 11 sections...")
+    print("  Writing code and markdown for all 12 sections...")
 
     generate_prompt = GENERATE_PROMPT_TEMPLATE.format(
         analysis_json=json.dumps(analysis, indent=2),
         design_json=json.dumps(design, indent=2),
     )
-
-    cells_raw = call_llm_with_retry(
-        system_prompt=SYSTEM_PROMPT,
-        user_content=f"Here is the research paper content:\n\n{pdf_text}\n\nInstructions:\n{generate_prompt}",
-        max_tokens=MAX_TOKENS_GENERATE,
-        model=model,
+    cells = _parse(
+        _llm(SYSTEM_PROMPT, f"Here is the research paper content:\n\n{pdf_text}\n\nInstructions:\n{generate_prompt}", MAX_TOKENS_GENERATE),
+        "generate_cells",
     )
-
-    cells = parse_llm_json(cells_raw, "generate_cells", model)
     num_cells = len(cells)
     code_cells = sum(1 for c in cells if c.get("cell_type") == "code")
     md_cells = sum(1 for c in cells if c.get("cell_type") == "markdown")
@@ -132,25 +137,17 @@ def run_pipeline(
     _print_step(4, "Validating notebook")
     print("  Checking for undefined variables, missing imports, placeholders...")
 
-    validate_prompt = VALIDATE_PROMPT_TEMPLATE.format(
-        cells_json=json.dumps(cells, indent=2)
+    validate_prompt = VALIDATE_PROMPT_TEMPLATE.format(cells_json=json.dumps(cells, indent=2))
+    validated_cells = _parse(
+        _llm(SYSTEM_PROMPT, validate_prompt, MAX_TOKENS_VALIDATE),
+        "validate",
     )
-
-    validated_raw = call_llm_with_retry(
-        system_prompt=SYSTEM_PROMPT,
-        user_content=validate_prompt,
-        max_tokens=MAX_TOKENS_VALIDATE,
-        model=model,
-    )
-
-    validated_cells = parse_llm_json(validated_raw, "validate", model)
-    num_validated = len(validated_cells)
-    print(f"  Validated: {num_validated} cells")
+    print(f"  Validated: {len(validated_cells)} cells")
 
     # ------------------------------------------------------------------
     # Build and save notebook
     # ------------------------------------------------------------------
-    print(f"\nBuilding notebook...")
+    print("\nBuilding notebook...")
     nb = build_notebook(validated_cells)
     save_notebook(nb, output_path)
     print(f"Saved to: {output_path}")

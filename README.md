@@ -1,66 +1,155 @@
-# 📄 Paper to Notebook
+# Paper to Code
 
-**Turn Research Papers into Runnable Code.**
+**Turn Research Papers into Runnable PyTorch Code.**
 
-`paper-to-notebook` is an AI-powered tool that automatically converts academic research papers (PDFs) into high-quality, educational Jupyter Notebooks. It uses OpenAI's GPT-4o to read the paper, design a faithful "toy" implementation using real PyTorch components, and generate a complete, runnable notebook.
+`paper-to-code` is an AI-powered tool that converts academic research papers (PDFs) into educational, fully-runnable Jupyter Notebooks. It supports **OpenAI**, **Google Gemini**, and **local LLMs** (via Ollama).
 
-## 🚀 Features
+Upload a PDF → get a 12-section notebook with real PyTorch implementations that run on CPU in under 15 minutes.
 
--   **Deep Analysis**: Extracts core algorithms, architectures, and mathematical equations from raw PDFs.
--   **Faithful Implementation**: Designs scaled-down "toy" experiments that run on CPU (in <15 mins) but use *real* neural network layers (no mock-ups).
--   **Self-Correcting**: Includes a verification step where the AI reviews its own code for syntax errors, shape mismatches, and undefined variables.
--   **Streaming Progress**: Real-time feedback on the analysis and generation process.
+---
 
-## 🛠️ Architecture
+## Features
 
-The system uses a multi-stage "Agentic" pipeline to ensure code quality.
+- **Multi-Provider**: OpenAI (GPT-4o), Google Gemini (gemini-2.0-flash), or local models via Ollama
+- **Deep Analysis**: Extracts algorithms, architectures, equations, and training details from raw PDFs
+- **Faithful Implementation**: Scaled-down toy experiments using *real* PyTorch layers — no mock-ups
+- **Self-Correcting Pipeline**: AI reviews its own generated code for shape mismatches, undefined variables, and missing imports
+- **Streaming UI**: Real-time progress with thinking display, draft download mid-generation, and activity cards
+- **CLI + Web**: Use from the browser or the command line
 
-![Architecture Diagram](https://mermaid.ink/img/Z3JhcGggVEQKICAgIFVzZXIoVXNlcikgLS0+fFVwbG9hZCBQREZ8IEFQSVtGYXN0QVBJIFNlcnZlcl0KICAgIEFQSSAtLT58U3RhcnQgSm9ifCBQaXBlbGluZXtQaXBlbGluZSBPcmNoZXN0cmF0b3J9CiAgICAKICAgIFBpcGVsaW5lIC0tPnwxLiBBbmFseXplfCBBbmFseXNpc1tQYXBlciBBbmFseXNpc10KICAgIEFuYWx5c2lzIC0tPnwyLiBQbGFufCBEZXNpZ25bVG95IEltcGxlbWVudGF0aW9uIERlc2lnbl0KICAgIERlc2lnbiAtLT58My4gQ29kZXwgR2VuW0NvZGUgR2VuZXJhdGlvbl0KICAgIEdlbiAtLT58NC4gUmVmaW5lfCBWYWxpZGF0ZVtWYWxpZGF0aW9uICYgUmVwYWlyXQogICAgCiAgICBWYWxpZGF0ZSAtLT58U2F2ZXwgTkJbKEdlbmVyYXRlZCAuaXB5bmIpXQogICAgTkIgLS0+fERvd25sb2FkfCBVc2Vy)
+---
 
-## 📦 Installation
+## Architecture
 
-1.  **Clone the repository**:
-    ```bash
-    git clone https://github.com/yourusername/paper-to-notebook.git
-    cd paper-to-notebook
-    ```
+```
+PDF Upload
+    │
+    ▼
+┌─────────────────────────────────────────────┐
+│              4-Step Pipeline                │
+│                                             │
+│  1. Analyze   → Extract algorithms,         │
+│                 equations, architecture     │
+│                                             │
+│  2. Design    → Plan scaled-down PyTorch    │
+│                 implementation              │
+│                                             │
+│  3. Generate  → Write 12-section notebook   │
+│                 with real training loops    │
+│                                             │
+│  4. Validate  → LLM reviews code, fixes     │
+│                 errors, ensures runability  │
+└─────────────────────────────────────────────┘
+    │
+    ▼
+Generated .ipynb  ←  Download (draft + validated)
+```
 
-2.  **Install dependencies**:
-    ```bash
-    pip install -r requirements.txt
-    # For the web interface:
-    pip install -r requirements.web.txt
-    ```
+---
 
-3.  **Set up API Keys**:
-    Create a `.env` file or export your key:
-    ```bash
-    export OPENAI_API_KEY="your_openai_api_key"
-    ```
+## Installation
 
-## 💻 Usage
+```bash
+git clone https://github.com/pravintakpire/paper-to-code.git
+cd paper-to-code
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+python -m ipykernel install --user --name=python3
+```
+
+---
+
+## Usage
 
 ### Web Interface
-Run the FastAPI server:
-```bash
-uvicorn app:app --reload
-```
-Open [http://localhost:8000](http://localhost:8000) in your browser. Upload a PDF and watch the notebook generation in real-time.
 
-### CLI (Command Line)
-*Note: Ensure `pipeline.py` is configured for CLI usage.*
 ```bash
-python pipeline.py --pdf path/to/paper.pdf --output my_notebook.ipynb
+./start.sh
 ```
 
-## 📂 Project Structure
+Open [http://localhost:8000](http://localhost:8000), select your provider, enter your API key, and upload a PDF.
 
--   `app.py`: FastAPI backend handling uploads and streaming responses.
--   `pipeline.py`: Core logic for the 4-stage generation process.
--   `llm.py`: Robust wrapper for OpenAI API with retry logic and PDF support.
--   `prompts.py`: Detailed system prompts for acting as a research engineer.
--   `notebook_builder.py`: Utilities for constructing valid `.ipynb` JSON.
+Or start manually:
 
-## 🤝 Contributing
+```bash
+uvicorn app:app --reload --port 8000
+```
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+### CLI
+
+**OpenAI** (default):
+```bash
+export OPENAI_API_KEY="sk-..."
+python generate_notebook.py paper.pdf
+python generate_notebook.py paper.pdf -o output.ipynb --model gpt-4o
+```
+
+**Gemini**:
+```bash
+export GEMINI_API_KEY="AIza..."
+python generate_notebook.py paper.pdf --provider gemini --model gemini-2.0-flash
+```
+
+**Local (Ollama)**:
+```bash
+# Requires Ollama running at localhost:11434
+python generate_notebook.py paper.pdf --provider local --model llama3
+python generate_notebook.py paper.pdf --provider local --base-url http://localhost:11434/v1
+```
+
+---
+
+## LLM Providers
+
+| Provider | Default Model | API Key Env Var | Notes |
+|----------|--------------|-----------------|-------|
+| OpenAI | `gpt-4o` | `OPENAI_API_KEY` | Best quality |
+| Gemini | `gemini-2.0-flash` | `GEMINI_API_KEY` | Fast & free tier |
+| Local | `llama3` | *(none)* | Requires [Ollama](https://ollama.com) |
+
+---
+
+## Project Structure
+
+```
+paper-to-code/
+├── app.py              # FastAPI server (streaming SSE, multi-provider)
+├── web_pipeline.py     # Async pipeline wrapper with progress callbacks
+├── pipeline.py         # CLI pipeline (same 4 steps)
+├── llm.py              # Unified LLM client (OpenAI / Gemini / Local)
+├── config.py           # Provider constants, model defaults, token limits
+├── prompts.py          # System + step-specific prompt templates
+├── notebook_builder.py # nbformat notebook construction
+├── generate_notebook.py# CLI entry point with --provider flag
+├── static/index.html   # Dark-themed web UI with provider selector
+├── requirements.txt    # All dependencies (openai + google-genai + torch)
+├── Dockerfile          # Container build
+└── start.sh / stop.sh  # Server lifecycle scripts
+```
+
+---
+
+## Generated Notebook Sections
+
+Each generated notebook contains 12 sections:
+
+1. Title & Paper Overview
+2. Problem Intuition
+3. Imports & Setup
+4. Dataset & Tokenization
+5. Model Architecture
+6. Loss Function & Training Utilities
+7. Baseline Implementation
+8. Main Algorithm — Training
+9. Inference / Generation
+10. Full Experiment & Evaluation
+11. Visualizations
+12. Summary & Next Steps
+
+---
+
+## Requirements
+
+- Python 3.9+
+- PyTorch (CPU is sufficient)
+- One of: OpenAI API key, Gemini API key, or Ollama running locally
